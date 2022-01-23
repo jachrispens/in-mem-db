@@ -65,7 +65,7 @@ public class Main {
                                 Optional<String> value = database.get(variableName);
                                 String outputToWrite = value.orElse("NULL");
                                 bufferedOutput.write(outputToWrite, 0, outputToWrite.length());
-                                bufferedOutput.write('\n');
+                                bufferedOutput.newLine();
                                 bufferedOutput.flush();
                             } else {
                                 System.err.println("GET requires an argument: GET variable");
@@ -85,7 +85,7 @@ public class Main {
                                 int count = database.numberOfValuesEqualTo(value);
                                 String outputToWrite = Integer.toString(count);
                                 bufferedOutput.write(outputToWrite, 0, outputToWrite.length());
-                                bufferedOutput.write('\n');
+                                bufferedOutput.newLine();
                                 bufferedOutput.flush();
                             } else {
                                 System.err.println("UNSET requires an argument: UNSET variable");
@@ -94,10 +94,22 @@ public class Main {
                             database.beginTransaction();
                             break;
                         case "rollback":
-                            database.rollbackTransaction();
+                            boolean transactionToRollback = database.rollbackTransaction();
+                            if (!transactionToRollback) {
+                                String outputToWrite = "NO TRANSACTION";
+                                bufferedOutput.write(outputToWrite, 0, outputToWrite.length());
+                                bufferedOutput.newLine();
+                                bufferedOutput.flush();
+                            }
                             break;
                         case "commit":
-                            database.commitAllOpenTransactions();
+                            boolean transactionToCommit = database.commitAllOpenTransactions();
+                            if (!transactionToCommit) {
+                                String outputToWrite = "NO TRANSACTION";
+                                bufferedOutput.write(outputToWrite, 0, outputToWrite.length());
+                                bufferedOutput.newLine();
+                                bufferedOutput.flush();
+                            }
                             break;
                         case "end":
                             endCommandExecuted = true;
@@ -118,11 +130,98 @@ public class Main {
 
     /**
      * Executes the tests.  The first failing tests results in an exception, exiting the program.
+     * (Very much a poor man's JUnit test suite.)
      */
     private static void executeTests() {
-        StringReader input = new StringReader("");
-        StringWriter output = new StringWriter();
+        dataCommandsTest1();
+        dataCommandsTest2();
+        transactionCommandsTest1();
+        transactionCommandsTest2();
+        transactionCommandsTest3();
+        transactionCommandsTest4();
+    }
+
+    private static void dataCommandsTest1() {
         Database database = new HashMapDatabase();
-        commandLoop(database, input, output);
+        database.set("x", "10");
+        assertTrue(database.get("x").equals(Optional.of("10")));
+        database.unset("x");
+        assertTrue(database.get("x").equals(Optional.empty()));
+    }
+
+    private static void dataCommandsTest2() {
+        Database database = new HashMapDatabase();
+        database.set("a", "10");
+        database.set("b", "10");
+        assertTrue(database.numberOfValuesEqualTo("10") == 2);
+        assertTrue(database.numberOfValuesEqualTo("20") == 0);
+        database.set("b", "30");
+        assertTrue(database.numberOfValuesEqualTo("10") == 1);
+    }
+
+    private static void transactionCommandsTest1() {
+        Database database = new HashMapDatabase();
+        database.beginTransaction();
+        database.set("a", "10");
+        assertTrue(database.get("a").equals(Optional.of("10")));
+        database.beginTransaction();
+        database.set("a", "20");
+        assertTrue(database.get("a").equals(Optional.of("20")));
+        boolean transactionToRollback = database.rollbackTransaction();
+        assertTrue(transactionToRollback);
+        assertTrue(database.get("a").equals(Optional.of("10")));
+        database.rollbackTransaction();
+        assertTrue(database.get("a").equals(Optional.empty()));
+    }
+
+    private static void transactionCommandsTest2() {
+        Database database = new HashMapDatabase();
+        database.beginTransaction();
+        database.set("a", "30");
+        database.beginTransaction();
+        database.set("a", "40");
+        boolean transactionToCommit = database.commitAllOpenTransactions();
+        assertTrue(transactionToCommit);
+        assertTrue(database.get("a").equals(Optional.of("40")));
+        boolean transactionToRollback = database.rollbackTransaction();
+        assertTrue(!transactionToRollback);
+    }
+
+    private static void transactionCommandsTest3() {
+        Database database = new HashMapDatabase();
+        database.set("a", "50");
+        database.beginTransaction();
+        assertTrue(database.get("a").equals(Optional.of("50")));
+        database.set("a", "60");
+        database.beginTransaction();
+        database.unset("a");
+        assertTrue(database.get("a").equals(Optional.empty()));
+        boolean transactionToRollback = database.rollbackTransaction();
+        assertTrue(transactionToRollback);
+        assertTrue(database.get("a").equals(Optional.of("60")));
+        boolean transactionToCommit = database.commitAllOpenTransactions();
+        assertTrue(transactionToCommit);
+        assertTrue(database.get("a").equals(Optional.of("60")));
+    }
+
+    private static void transactionCommandsTest4() {
+        Database database = new HashMapDatabase();
+        database.set("a", "10");
+        database.beginTransaction();
+        assertTrue(database.numberOfValuesEqualTo("10") == 1);
+        database.beginTransaction();
+        database.unset("a");
+        assertTrue(database.numberOfValuesEqualTo("10") == 0);
+        boolean transactionToRollback = database.rollbackTransaction();
+        assertTrue(transactionToRollback);
+        assertTrue(database.numberOfValuesEqualTo("10") == 1);
+        boolean transactionToCommit = database.commitAllOpenTransactions();
+        assertTrue(transactionToCommit);
+    }
+
+    private static void assertTrue(boolean value) {
+        if (!value) {
+            throw new RuntimeException("Test failed!");
+        }
     }
 }

@@ -54,7 +54,7 @@ public interface Database {
      * 0 is returned.
      *
      * @param value  The value whose associates are to be counted.
-     * @return
+     * @return  The number of variable associated with the provided value.
      */
     int numberOfValuesEqualTo(String value);
 
@@ -65,14 +65,15 @@ public interface Database {
     void beginTransaction();
 
     /**
-     * Undoes all changes made since the most recent beginTransaction().  If there
-     * is no open transaction, this is a no-op.
+     * Undoes all changes made since the most recent beginTransaction().
+     *
+     * @return true if a transaction was rolled back, false if no transaction is open.
      */
-    void rollbackTransaction();
+    boolean rollbackTransaction();
 
     /**
      * Makes all changes by all open transactions permanent.  That is, these changes can
-     * no longer be undone.  If there are no open transactions, this is a no-op.
+     * no longer be undone.
      */
-    void commitAllOpenTransactions();
+    boolean commitAllOpenTransactions();
 }
